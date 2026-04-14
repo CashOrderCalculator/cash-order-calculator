@@ -218,17 +218,45 @@ display: inline-block;
   </label>
 </div>
 
-<div id="tableContainer"></div>
-<div class="summary" id="summary"></div>
-<div class="summary" id="currentContentTotal">
-  <div>Current Content Total   
-  Notes: $<span id="notesTotal">0.00</span>
-  Coins: $<span id="coinsTotal">0.00</span></div>
+<div style="display:flex; gap:20px; align-items:flex-start;">
+
+<div style="display:flex; gap:20px; align-items:flex-start;">
+
+<div style="display:flex; gap:20px; align-items:flex-start;">
+
+<div style="display:flex; gap:20px; align-items:flex-start; width:100%;">
+
+<div style="display:flex; gap:20px; align-items:flex-start;">
+
+  <!-- LEFT -->
+  <div style="flex:0 0 800px; display:flex; flex-direction:column; gap:10px;">
+    
+    <div id="tableContainer"></div>
+
+    <div class="summary" id="currentContentTotal">
+      <div>Current Content Total : 
+      Notes: $<span id="notesTotal">0.00</span>
+      Coins: $<span id="coinsTotal">0.00</span></div>
+    </div>
+
+    <button class="saveBtn" onclick="finaliseOrder()">
+      Save / Finalise Order
+    </button>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div style="flex:0 0 365px; display:flex; flex-direction:column; gap:10px;">
+
+    <div class="summary" id="summary"></div>
+
+    <div id="recSummaryTable"></div>
+
+    <div class="comment" id="comment"></div>
+
+  </div>
+
 </div>
-<div class="comment" id="comment"></div>
-
-<button class="saveBtn" onclick="finaliseOrder()">Save / Finalise Order</button>
-
 <script>
 /* =====================================================
    EMBEDDED DATA
@@ -3169,6 +3197,8 @@ const DATA = [
   { SiteName: 'SW Whyalla Westlands', EmailPrefix: 'SW', LocID: 7761, Denomination: 20.0, HopperNumber: 3, Dispensed: 16560.0, Count: 365 },
 ];
 
+
+
 /* =====================================================
    NORMALISE DATA
 ===================================================== */
@@ -3205,7 +3235,7 @@ function denomLabel(d){ return d >= 1 ? `$${d}` : `${Math.round(d*100)}c`; }
 /* =====================================================
    STATE + DOM
 ===================================================== */
-const state = { inputs:{}, rows:[] };
+const state = { inputs:{}, rows:[], rec:{} };
 let ALL_SITES = [];
 
 const siteSearch = document.getElementById("siteSearch");
@@ -3284,16 +3314,15 @@ function render(){
   tableContainer.innerHTML=`
   <table><thead><tr>
     <th>Denomination</th><th>Hopper</th><th>Maximum Capacity ($)</th>
-    <th>Current Content ($)</th><th>Recommended Order</th>
+<th>Current Content ($)</th>
   </tr></thead><tbody>
   ${state.rows.map((r,i)=>{
     const k=`${r.Denomination}_${r.HopperNumber}_${i}`;
     return `<tr>
       <td>${denomLabel(r.Denomination)}</td>
       <td>${r.HopperNumber}</td>
-      <td>${MAX_BY_DENOM[r.Denomination]}</td>
-      <td><input data-key="${k}" type="number" value="${state.inputs[k]??""}"></td>
-      <td id="rec_${k}"></td>
+<td>${MAX_BY_DENOM[r.Denomination]}</td>
+<td><input data-key="${k}" type="number" value="${state.inputs[k]??""}"></td>
     </tr>`;
   }).join("")}
   </tbody></table>`;
@@ -3314,12 +3343,13 @@ function calculate(){
   state.rows.forEach((r,i)=>{
     const k=`${r.Denomination}_${r.HopperNumber}_${i}`;
     const el=document.querySelector(`input[data-key="${k}"]`);
-    const rec=document.getElementById(`rec_${k}`);
+    const rec = document.getElementById(`rec_${k}`); // may be null now
     el.classList.remove("input-warn","input-error");
-    el.title=""; rec.textContent="";
+    el.title=""; if(rec) rec.textContent="";
 
-    const val=state.inputs[k];
-    if(val==null) return;
+    let val = state.inputs[k];
+if (val === null || val === undefined || val === "") return;
+val = Number(val);
 
     const max=MAX_BY_DENOM[r.Denomination];
     if(val>max){
@@ -3360,14 +3390,21 @@ const raw = Math.min(base + buffer, max);
   provisional.forEach(p=>{
     byDen[p.den]??=[]; byDen[p.den].push(p)
   });
+renderRecSummary(byDen);
 calculateCurrentContentTotals();
-  Object.values(byDen).forEach(g=>{
-    const min=Math.min(...g.map(x=>x.order));
-    g.forEach(x=>{
-      document.getElementById(`rec_${x.k}`).textContent=`$${min.toFixed(2)}`;
-      total+=min;
-    });
+  Object.values(byDen).forEach(g => {
+
+  // STEP 1: get lowest hopper recommendation
+  const base = Math.min(...g.map(x => x.order));
+
+  // STEP 2: enforce same value for ALL hoppers
+  g.forEach(x => {
+    state.rec[x.k] = base;
   });
+
+  // STEP 3: correct total
+  total += base * g.length;
+});
 summary.textContent = hasError
   ? "Recommended Order: (errors present)"
   : total < 1000
@@ -3380,69 +3417,145 @@ summary.classList.toggle(
   hasError ||total < 1000
 );
 
-  buildComment();
+  buildComment(provisional);
 }
 
+function renderRecSummary(byDen) {
 
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Denomination</th>
+          <th>Recommended Order</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  Object.keys(byDen)
+    .sort((a,b)=>b-a)
+    .forEach(den => {
+
+      const sum = byDen[den].reduce((acc, x) => acc + x.order, 0);
+
+      html += `
+        <tr>
+          <td>${denomLabel(Number(den))}</td>
+          <td>$${sum.toFixed(2)}</td>
+        </tr>
+      `;
+    });
+
+  html += `</tbody></table>`;
+
+  document.getElementById("recSummaryTable").innerHTML = html;
+}
 /* =====================================================
    COMMENT
 ===================================================== */
-function buildComment(){
-  const coins=["$2","$1","20c","10c","5c"];
-  let hoppers=0, groups={};
+function buildComment(provisional) {
+  const coins = ["$2", "$1", "20c", "10c", "5c"];
+  let hoppers = 0, groups = {};
 
-  state.rows.forEach((r,i)=>{
-    const lab=denomLabel(r.Denomination);
-    if(!coins.includes(lab)) return;
-    hoppers++;
-    const k=`${r.Denomination}_${r.HopperNumber}_${i}`;
-    const v=parseFloat(document.getElementById(`rec_${k}`).textContent.replace("$",""));
-    if(!v) return;
-    groups[lab]??=[]; 
-	groups[lab].push({
-  	value: Math.round(v),   // whole dollars only
-  	hopper: r.HopperNumber
-});
-
+  // count coin hoppers
+  state.rows.forEach(r => {
+    const lab = denomLabel(r.Denomination);
+    if (coins.includes(lab)) hoppers++;
   });
 
-  Object.keys(groups).forEach(k=>groups[k].length<=1&&delete groups[k]);
-  if(!Object.keys(groups).length){ comment.textContent=""; return; }
+  // build from provisional (per hopper data)
+  (provisional || []).forEach(p => {
 
-  let txt=`Comment : ${hoppers}:`;
-coins.forEach(c => {
-  if (groups[c]) {
-    txt += ` ${c} ` + groups[c]
-      .map(x => `${x.value}H${x.hopper}`)
-      .join(" ");
-  }
+  const lab = denomLabel(p.den);
+  if (!coins.includes(lab)) return;
+
+  const parts = p.k.split("_");
+  const hopper = parts[1];
+
+  // 🔥 NORMALISE USING FINAL BASE VALUE (NOT raw p.order)
+  const finalValue = state.rec[p.k];
+  if (!finalValue) return;
+
+  groups[lab] ??= [];
+  groups[lab].push({
+    value: Math.round(finalValue),
+    hopper: hopper
+  });
 });
 
-  comment.textContent=txt+" /";
-}
+  // remove single hopper denominations
+  Object.keys(groups).forEach(k => {
+    if (groups[k].length <= 1) delete groups[k];
+  });
 
+  if (!Object.keys(groups).length) {
+    comment.textContent = "";
+    return;
+  }
+
+  // build output (NO "Comment :" here)
+  let txt = `${hoppers}:`;
+
+  coins.forEach(c => {
+    if (groups[c]) {
+      txt += ` ${c} ` + groups[c]
+        .map(x => `${x.value}H${x.hopper}`)
+        .join(" ");
+    }
+  });
+
+  comment.textContent = txt + " /";
+}
 /* =====================================================
    SAVE
 ===================================================== */
-function finaliseOrder(){
-  if(!confirm("Have you finished your order and submitted it in the Armaguard Portal?")) return;
-  const csv=["SiteName,Offer,Denomination,Hopper,CurrentContent,RecommendedOrder"];
-  state.rows.forEach((r,i)=>{
-    const k=`${r.Denomination}_${r.HopperNumber}_${i}`;
-    csv.push([
-      r.SiteName,r.EmailPrefix,r.Denomination,r.HopperNumber,
-      state.inputs[k]??"",
-      document.getElementById(`rec_${k}`).textContent.replace("$","")||""
-    ].join(","));
-  });
-  const b=new Blob([csv.join("\n")],{type:"text/csv"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(b);
-  a.download="cash_order.csv";
-  a.click();
-  setTimeout(()=>location.reload(),300);
-}
+function finaliseOrder() {
+  if (!confirm("Have you finished your order and submitted it in the Armaguard Portal?")) return;
 
+  const csv = ["SiteName,Offer,Denomination,Hopper,CurrentContent,RecommendedOrder"];
+
+  state.rows.forEach((r, i) => {
+    const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
+
+    const recValue = state.rec[k];
+
+csv.push([
+  r.SiteName,
+  r.EmailPrefix,
+  r.Denomination,
+  r.HopperNumber,
+  state.inputs[k] ?? "",
+  recValue ?? ""
+].join(","));
+  });
+
+  // ✅ ADD COMMENT ROW (this is what you're missing)
+  csv.push(["Comment", comment.textContent || ""].join(","));
+
+  const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "cash_order.csv";
+
+  document.body.appendChild(a);
+
+// ✅ MUST be synchronous user gesture
+a.click();
+
+// cleanup after browser has time to start download
+setTimeout(() => {
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}, 1000);
+
+// refresh after download initiation window
+setTimeout(() => {
+  location.reload();
+}, 2000);
+}
 /* =====================================================
    INIT
 ===================================================== */
