@@ -5,31 +5,46 @@
 <title>Cash Order Calculator</title>
 
 <style>
-/* ===== Global ===== */
+/* =====================================================
+   Primary Colour Palette
+===================================================== */
+:root {
+  --primary-accent: rgb(224, 223, 0);   /* Yellow */
+  --primary-text: rgb(1, 1, 1);         /* Black */
+  --dark-neutral: rgb(72, 73, 74);      /* Dark Grey */
+  --neutral-grey: rgb(130, 130, 130);   /* Mid Grey */
+  --negative-accent: rgb(232, 78, 40); /* Recommended Order: No */
+}
+
+/* =====================================================
+   Global
+===================================================== */
 body {
   font-family: "Segoe UI", Arial, sans-serif;
-  background: #f4f6f8;
+  background: rgb(246, 246, 246);
   max-width: 1200px;
   margin: 0 auto;
   padding: 30px 20px;
-  color: #222;
+  color: var(--primary-text);
 }
 
 .app-card {
   background: #ffffff;
   border-radius: 10px;
   padding: 24px 28px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
 h2 {
   text-align: center;
   font-weight: 600;
   margin-bottom: 24px;
-  color: #2b2b2b;
+  color: var(--primary-text);
 }
 
-/* ===== Controls ===== */
+/* =====================================================
+   Controls
+===================================================== */
 .controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -39,7 +54,7 @@ h2 {
 
 label {
   font-size: 13px;
-  color: #444;
+  color: var(--dark-neutral);
   display: flex;
   flex-direction: column;
 }
@@ -49,20 +64,23 @@ input[type="number"],
 input[type="text"] {
   height: 36px;
   border-radius: 6px;
-  border: 1px solid #cfcfcf;
+  border: 1px solid var(--neutral-grey);
   padding: 0 10px;
   font-size: 14px;
   background: #ffffff;
+  color: var(--primary-text);
 }
 
 select:focus,
 input:focus {
   outline: none;
-  border-color: #0f6cbd;
-  box-shadow: 0 0 0 2px rgba(15,108,189,0.15);
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 0 2px rgba(224, 223, 0, 0.35);
 }
 
-/* ===== Table ===== */
+/* =====================================================
+   Table
+===================================================== */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -72,87 +90,101 @@ table {
 }
 
 th {
-  background: #f2f4f7;
+  background: rgb(240, 240, 240);
   font-weight: 600;
-  color: #333;
+  color: var(--dark-neutral);
 }
 
-th, td {
-  border: 1px solid #e0e0e0;
+th,
+td {
+  border: 1px solid var(--neutral-grey);
   padding: 10px;
   text-align: center;
 }
 
-td:nth-child(3),
-td:nth-child(4),
-td:nth-child(5) {
-  text-align: right;
-  padding-right: 12px;
-}
+//td:nth-child(3),
+//td:nth-child(4),
+//td:nth-child(5) {
+  //text-align: right;
+  //padding-right: 12px;
+//}
 
 tbody tr:hover {
-  background: #fafafa;
+  background: rgba(130, 130, 130, 0.08);
 }
 
-/* ===== SharePoint‑safe validation (IMPORTANT) ===== */
+/* =====================================================
+   SharePoint-safe validation
+===================================================== */
 input.input-warn {
-  border-color: #f2b705;
-  box-shadow: inset 0 0 0 1000px #fff8e1;
+  border-color: var(--primary-accent);
+  box-shadow: inset 0 0 0 1000px rgb(255, 255, 225);
 }
 
 input.input-error {
-  border-color: #d13438;
-  box-shadow: inset 0 0 0 1000px #fdecea;
+  border-color: rgb(180, 0, 0);
+  box-shadow: inset 0 0 0 1000px rgb(255, 230, 230);
 }
 
 input.input-warn:focus {
   box-shadow:
-    inset 0 0 0 1000px #fff8e1,
-    0 0 0 2px rgba(242,183,5,0.25);
+    inset 0 0 0 1000px rgb(255, 255, 225),
+    0 0 0 2px rgba(224, 223, 0, 0.35);
 }
 
 input.input-error:focus {
   box-shadow:
-    inset 0 0 0 1000px #fdecea,
-    0 0 0 2px rgba(209,52,56,0.25);
+    inset 0 0 0 1000px rgb(255, 230, 230),
+    0 0 0 2px rgba(180, 0, 0, 0.35);
 }
 
-/* ===== Summary / Comment ===== */
+/* =====================================================
+   Summary / Comment
+===================================================== */
 .summary {
   margin-top: 20px;
   padding: 12px 16px;
-  background: #f7f9fc;
-  border-left: 4px solid #0f6cbd;
+  background: rgb(250, 250, 230);
+  border-left: 4px solid var(--primary-accent);
   border-radius: 4px;
   font-weight: 600;
+  color: var(--primary-text);
 }
 
 .comment {
   margin-top: 10px;
   padding: 10px 16px;
-  background: #fdfdfd;
-  border-left: 4px solid #888;
+  background: #ffffff;
+  border-left: 4px solid var(--dark-neutral);
   border-radius: 4px;
   font-family: Consolas, monospace;
   font-size: 14px;
+  color: var(--dark-neutral);
 }
 
-/* ===== Save Button ===== */
+/* =====================================================
+   Save Button
+===================================================== */
 .saveBtn {
   margin-top: 24px;
   padding: 12px 20px;
-  background: #0f6cbd;
-  color: white;
+  background: var(--primary-accent);
+  color: var(--primary-text);
   border: none;
   border-radius: 6px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.saveBtn:hover { background: #115ea3; }
-.saveBtn:active { background: #0c3b5f; }
-</style>
-</head>
+.saveBtn:hover {
+  background: rgb(204, 203, 0);
+}
+
+.saveBtn:active {
+  background: rgb(170, 169, 0);
+}
+</style></head>
 
 <body>
 <div class="app-card">
