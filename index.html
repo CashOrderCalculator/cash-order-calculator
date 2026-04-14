@@ -3336,9 +3336,18 @@ function calculate(){
       el.title=`Warning: not multiple of ${denomLabel(r.Denomination)}`;
     }
 
-    const base=max-val;
-    const buffer=(r.Dispensed/r.Count)*(Number(daysInput.value)||1);
-    const raw=Math.min(base+buffer,base);
+    const base = max - val;
+
+// avg daily usage
+const avgDaily = (r.Count > 0) ? (r.Dispensed / r.Count) : 0;
+
+// buffer based on days
+const days = Number(daysInput.value) || 1;
+const effectiveDays = Math.max(0, days - 1);
+
+const buffer = avgDaily * effectiveDays;
+// NEW: apply buffer correctly
+const raw = Math.min(base + buffer, max);
 
     const rule=RULES[r.Denomination];
     if(raw<rule.min) return;
