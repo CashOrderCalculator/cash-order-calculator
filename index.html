@@ -13,7 +13,7 @@
   --primary-text: rgb(1, 1, 1);         /* Black */
   --dark-neutral: rgb(72, 73, 74);      /* Dark Grey */
   --neutral-grey: rgb(130, 130, 130);   /* Mid Grey */
-  --negative-accent: rgb(232, 78, 40); /* Recommended Order: No */
+  --negative-accent: rgb(180, 0, 0, 0.35); /* Recommended Order: No */
 }
 
 /* =====================================================
@@ -24,14 +24,14 @@ body {
   background: rgb(246, 246, 246);
   max-width: 1200px;
   margin: 0 auto;
-  padding: 5px 10px;
+  padding: 5px 5px;
   color: var(--primary-text);
 }
 
 .app-card {
   background: #ffffff;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 5px 6px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
@@ -48,8 +48,8 @@ h2 {
 .controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 18px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 5px;
 }
 
 label {
@@ -142,15 +142,20 @@ input.input-error:focus {
    Summary / Comment
 ===================================================== */
 .summary {
+display: inline-block;
   margin-top: 5px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   background: rgb(250, 250, 230);
   border-left: 4px solid var(--primary-accent);
   border-radius: 4px;
   font-weight: 600;
   color: var(--primary-text);
 }
-
+.summary.negative {
+  background: var(--negative-accent);
+  color: #fff; /* improves contrast */
+  border-left-color: var(--negative-accent);
+}
 .comment {
   margin-top: 5px;
   padding: 10px 16px;
@@ -158,7 +163,7 @@ input.input-error:focus {
   border-left: 4px solid var(--dark-neutral);
   border-radius: 4px;
   font-family: Consolas, monospace;
-  font-size: 14px;
+  font-weight: 600;
   color: var(--dark-neutral);
 }
 
@@ -215,6 +220,11 @@ input.input-error:focus {
 
 <div id="tableContainer"></div>
 <div class="summary" id="summary"></div>
+<div class="summary" id="currentContentTotal">
+  <div>Current Content Total   
+  Notes: $<span id="notesTotal">0.00</span>
+  Coins: $<span id="coinsTotal">0.00</span></div>
+</div>
 <div class="comment" id="comment"></div>
 
 <button class="saveBtn" onclick="finaliseOrder()">Save / Finalise Order</button>
@@ -3159,7 +3169,6 @@ const DATA = [
   { SiteName: 'SW Whyalla Westlands', EmailPrefix: 'SW', LocID: 7761, Denomination: 20.0, HopperNumber: 3, Dispensed: 16560.0, Count: 365 },
 ];
 
-
 /* =====================================================
    NORMALISE DATA
 ===================================================== */
@@ -3232,6 +3241,36 @@ function updateOffers(){
   offerSelect.innerHTML="";
   offers.forEach(o=>offerSelect.add(new Option(o,o)));
   render();
+}
+/* =====================================================
+   CURRENT CONTENT 
+===================================================== */
+function calculateCurrentContentTotals() {
+  const NOTE_DENOMS = [20, 10, 5];
+  const COIN_DENOMS = [2, 1, 0.2, 0.1, 0.05];
+
+  let notesTotal = 0;
+  let coinsTotal = 0;
+
+  // ✅ Loop over user-entered values, not rows/Dispensed
+  Object.entries(state.inputs).forEach(([key, value]) => {
+    if (value == null) return;
+
+    // key format: Denomination_Hopper_Index
+    const denom = Number(key.split("_")[0]);
+
+    if (NOTE_DENOMS.includes(denom)) {
+      notesTotal += value;
+    } else if (COIN_DENOMS.includes(denom)) {
+      coinsTotal += value;
+    }
+  });
+
+  document.getElementById("notesTotal").textContent =
+    notesTotal.toFixed(2);
+
+  document.getElementById("coinsTotal").textContent =
+    coinsTotal.toFixed(2);
 }
 
 /* =====================================================
@@ -3312,7 +3351,7 @@ function calculate(){
   provisional.forEach(p=>{
     byDen[p.den]??=[]; byDen[p.den].push(p)
   });
-
+calculateCurrentContentTotals();
   Object.values(byDen).forEach(g=>{
     const min=Math.min(...g.map(x=>x.order));
     g.forEach(x=>{
@@ -3320,14 +3359,21 @@ function calculate(){
       total+=min;
     });
   });
+summary.textContent = hasError
+  ? "Recommended Order: (errors present)"
+  : total < 1000
+    ? "Recommended Order: No"
+    : "Recommended Order: Yes";
 
-  summary.textContent=hasError
-    ?"Recommended Order: (errors present)"
-    :total<1000?"Recommended Order: No"
-    :`Recommended Order: $${total.toFixed(2)}`;
+// Background colour control
+summary.classList.toggle(
+  "negative",
+  hasError ||total < 1000
+);
 
   buildComment();
 }
+
 
 /* =====================================================
    COMMENT
