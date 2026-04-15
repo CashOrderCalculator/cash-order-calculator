@@ -251,8 +251,9 @@ display: inline-block;
     <div class="summary" id="summary"></div>
 
     <div id="recSummaryTable"></div>
-
+    <div style="font-weight:bold;">Comment: Must be copied to order</div>
     <div class="comment" id="comment"></div>
+    <button class="saveBtn" onclick="copyComment()">Copy Comment</button>
 
   </div>
 
@@ -3197,6 +3198,20 @@ const DATA = [
   { SiteName: 'SW Whyalla Westlands', EmailPrefix: 'SW', LocID: 7761, Denomination: 20.0, HopperNumber: 3, Dispensed: 16560.0, Count: 365 },
 ];
 
+/* =====================================================
+   COPY COMMENT
+===================================================== */
+function copyComment() {
+  const text = document.getElementById("comment").textContent;
+
+  if (!text) {
+    alert("No comment to copy");
+    return;
+  }
+
+  navigator.clipboard.writeText(text)
+
+}
 
 
 /* =====================================================
