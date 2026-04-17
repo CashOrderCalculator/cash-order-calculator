@@ -3200,6 +3200,7 @@ const DATA = [
 
 
 
+
 /* =====================================================
    COPY COMMENT
 ===================================================== */
@@ -3337,8 +3338,8 @@ function render(){
     return `<tr>
       <td>${denomLabel(r.Denomination)}</td>
       <td>${r.HopperNumber}</td>
-<td>${MAX_BY_DENOM[r.Denomination]}</td>
-<td>
+<td>$${MAX_BY_DENOM[r.Denomination]}</td>
+<td>$
   <input
     class="current-content-input"
     data-key="${k}"
@@ -3366,6 +3367,7 @@ function roundToDenomination(value, denom) {
 
   return Math.round(value / step) * step;
 }
+
 function calculate() {
   let total = 0;
   let hasError = false;
@@ -3374,10 +3376,10 @@ function calculate() {
   state.rec = {};
 
   const days = Math.max(1, Number(daysInput.value || 1));
-  const dayFactor = Math.max(0, days - 1); // 🔥 day 1 = 0 effect
+  const dayFactor = Math.max(0, days - 1);
 
   // =========================
-  // GROUP ROWS BY DENOM
+  // GROUP BY DENOM
   // =========================
   state.rows.forEach((r, i) => {
     const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
@@ -3390,7 +3392,7 @@ function calculate() {
   const provisional = [];
 
   // =========================
-  // CALC PER DENOM
+  // PER DENOM
   // =========================
   Object.keys(denomRows).forEach(den => {
 
@@ -3398,12 +3400,12 @@ function calculate() {
     const rule = RULES[den];
     const max = MAX_BY_DENOM[den];
 
-    const tempResults = [];
-
     let denomValid = true;
 
+    const baseResults = [];
+
     // =========================
-    // VALIDATION
+    // VALIDATION PASS
     // =========================
     rows.forEach(item => {
       let val = item.val;
@@ -3418,7 +3420,7 @@ function calculate() {
     });
 
     // =========================
-    // PER HOPPER CALC
+    // BASE CALC (NO ROUNDING YET)
     // =========================
     rows.forEach(item => {
 
@@ -3429,40 +3431,44 @@ function calculate() {
 
       const deficit = max - val;
 
-      // base order (capacity logic)
       let baseOrder = 0;
 
       if (denomValid) {
         baseOrder = Math.floor(deficit / rule.pack) * rule.pack;
       }
 
-      // forecast per hopper
       const forecast =
         (Number(item.r.Dispensed) || 0) /
         (Number(item.r.Count) || 1) *
         dayFactor;
 
-      let final = baseOrder + forecast;
+      const raw = baseOrder + forecast;
 
-      // round to denomination
-      final = roundToDenomination(final, Number(den));
-
-      // cap at max capacity
-      final = Math.min(final, max);
-
-      tempResults.push({
-        ...item,
-        final
-      });
+      baseResults.push(raw);
     });
 
     // =========================
-    // APPLY (consistency: use MAX of hopper values, not min)
+    // MULTI-HOPPER RULE (CORRECT)
     // =========================
-    const groupValue = Math.max(...tempResults.map(x => x.final));
+    // TAKE MINIMUM BASE REQUIREMENT
+    let groupValue = Math.min(...baseResults);
 
-    tempResults.forEach(item => {
+    if (!isFinite(groupValue)) groupValue = 0;
 
+    // =========================
+    // APPLY ROUNDING ONCE (CRITICAL FIX)
+    // =========================
+    groupValue = Math.round(groupValue / rule.pack) * rule.pack;
+
+    // =========================
+    // CAP AFTER GROUP DECISION
+    // =========================
+    groupValue = Math.min(groupValue, max);
+
+    // =========================
+    // APPLY TO ALL HOPPERS
+    // =========================
+    rows.forEach(item => {
       state.rec[item.k] = groupValue;
 
       provisional.push({
@@ -3509,7 +3515,10 @@ function calculate() {
 
   calculateCurrentContentTotals();
   buildComment(provisional);
-}function renderRecSummary(byDen) {
+}
+
+
+function renderRecSummary(byDen) {
 
   let html = `
     <table>
@@ -3656,3 +3665,4 @@ updateOffers();
 </div>
 </body>
 </html>
+   
