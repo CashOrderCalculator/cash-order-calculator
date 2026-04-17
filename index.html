@@ -3198,6 +3198,7 @@ const DATA = [
   { SiteName: 'SW Whyalla Westlands', EmailPrefix: 'SW', LocID: 7761, Denomination: 20.0, HopperNumber: 3, Dispensed: 16560.0, Count: 365 },
 ];
 
+
 /* =====================================================
    COPY COMMENT
 ===================================================== */
@@ -3212,7 +3213,6 @@ function copyComment() {
   navigator.clipboard.writeText(text)
 
 }
-
 
 /* =====================================================
    NORMALISE DATA
@@ -3350,88 +3350,126 @@ function render(){
   });
   calculate();
 }
+function calculate() {
+  let total = 0;
+  let hasError = false;
 
-function calculate(){
-  let total=0, hasError=false;
-  const provisional=[];
+  const denomRows = {};
+  state.rec = {};
 
-  state.rows.forEach((r,i)=>{
-    const k=`${r.Denomination}_${r.HopperNumber}_${i}`;
-    const el=document.querySelector(`input[data-key="${k}"]`);
-    const rec = document.getElementById(`rec_${k}`); // may be null now
-    el.classList.remove("input-warn","input-error");
-    el.title=""; if(rec) rec.textContent="";
+  // =========================
+  // GROUP ROWS BY DENOM
+  // =========================
+  state.rows.forEach((r, i) => {
+    const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
+    const val = state.inputs[k];
 
-    let val = state.inputs[k];
-if (val === null || val === undefined || val === "") return;
-val = Number(val);
-
-    const max=MAX_BY_DENOM[r.Denomination];
-    if(val>max){
-      el.classList.add("input-error");
-      el.title=`Error: exceeds max $${max}`;
-      hasError=true;
-      return;
-    }
-
-    const cents=Math.round(val*100);
-    const dc=Math.round(r.Denomination*100);
-    if(cents%dc!==0){
-      el.classList.add("input-warn");
-      el.title=`Warning: not multiple of ${denomLabel(r.Denomination)}`;
-    }
-
-    const base = max - val;
-
-// avg daily usage
-const avgDaily = (r.Count > 0) ? (r.Dispensed / r.Count) : 0;
-
-// buffer based on days
-const days = Number(daysInput.value) || 1;
-const effectiveDays = Math.max(0, days - 1);
-
-const buffer = avgDaily * effectiveDays;
-// NEW: apply buffer correctly
-const raw = Math.min(base + buffer, max);
-
-    const rule=RULES[r.Denomination];
-    if(raw<rule.min) return;
-
-    const order=Math.floor(raw/rule.pack)*rule.pack;
-    if(order) provisional.push({k,den:r.Denomination,order});
+    if (!denomRows[r.Denomination]) denomRows[r.Denomination] = [];
+    denomRows[r.Denomination].push({ r, i, k, val });
   });
 
-  const byDen={};
-  provisional.forEach(p=>{
-    byDen[p.den]??=[]; byDen[p.den].push(p)
+  const provisional = [];
+
+  // =========================
+  // CALCULATE PER DENOM
+  // =========================
+  Object.keys(denomRows).forEach(den => {
+
+    const rows = denomRows[den];
+    const rule = RULES[den];
+    const max = MAX_BY_DENOM[den];
+
+    let denomValid = true;
+    const tempOrders = [];
+
+    // =========================
+    // VALIDATION PASS
+    // =========================
+    rows.forEach(item => {
+      let val = item.val;
+
+      if (val == null || val === "") return;
+      val = Number(val);
+
+      if (val > max) hasError = true;
+
+      const deficit = max - val;
+
+      if (deficit < rule.min) {
+        denomValid = false;
+      }
+    });
+
+    // =========================
+    // TEMP CALC PER HOPPER
+    // =========================
+    rows.forEach(item => {
+
+      let val = item.val;
+      if (val == null || val === "") return;
+
+      val = Number(val);
+
+      const deficit = max - val;
+
+      let order = 0;
+
+      if (!denomValid) {
+        order = 0;
+      } else {
+        order = Math.floor(deficit / rule.pack) * rule.pack;
+      }
+
+      tempOrders.push({ ...item, order });
+    });
+
+    // =========================
+    // 🔥 CRITICAL FIX:
+    // take smallest order and apply to ALL hoppers
+    // =========================
+    const base = Math.min(...tempOrders.map(x => x.order));
+
+    tempOrders.forEach(item => {
+      state.rec[item.k] = base;
+      provisional.push({
+        k: item.k,
+        den: Number(den),
+        order: base
+      });
+
+      total += base;
+    });
+
   });
-renderRecSummary(byDen);
-calculateCurrentContentTotals();
-  Object.values(byDen).forEach(g => {
 
-  // STEP 1: get lowest hopper recommendation
-  const base = Math.min(...g.map(x => x.order));
+  // =========================
+  // BUILD SUMMARY
+  // =========================
+  const byDen = {};
 
-  // STEP 2: enforce same value for ALL hoppers
-  g.forEach(x => {
-    state.rec[x.k] = base;
+  Object.keys(denomRows).forEach(den => {
+    byDen[den] = [];
+
+    denomRows[den].forEach(item => {
+      const val = state.rec[item.k] || 0;
+
+      byDen[den].push({ order: val });
+    });
   });
 
-  // STEP 3: correct total
-  total += base * g.length;
-});
-summary.textContent = hasError
-  ? "Recommended Order: (errors present)"
-  : total < 1000
-    ? "Recommended Order: No"
-    : "Recommended Order: Yes";
+  // =========================
+  // UI
+  // =========================
+  summary.textContent = hasError
+    ? "Recommended Order: (errors present)"
+    : total < 1000
+      ? "Recommended Order: No"
+      : "Recommended Order: Yes";
 
-// Background colour control
-summary.classList.toggle(
-  "negative",
-  hasError ||total < 1000
-);
+  summary.classList.toggle("negative", hasError || total < 1000);
 
+  renderRecSummary(byDen);
+  calculateCurrentContentTotals();
   buildComment(provisional);
 }
 
@@ -3471,50 +3509,48 @@ function renderRecSummary(byDen) {
 ===================================================== */
 function buildComment(provisional) {
   const coins = ["$2", "$1", "20c", "10c", "5c"];
-  let hoppers = 0, groups = {};
+  let groups = {};
 
-  // count coin hoppers
-  state.rows.forEach(r => {
+  // STEP 1: group by denomination first
+  state.rows.forEach((r, i) => {
+
     const lab = denomLabel(r.Denomination);
-    if (coins.includes(lab)) hoppers++;
+    if (!coins.includes(lab)) return;
+
+    const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
+
+    const recValue = state.rec[k];
+
+    const value = (recValue === null || recValue === undefined || recValue === "")
+      ? 0
+      : Math.round(recValue);
+
+    if (!groups[lab]) groups[lab] = [];
+
+    groups[lab].push({
+      hopper: r.HopperNumber,
+      value
+    });
   });
 
-  // build from provisional (per hopper data)
-  (provisional || []).forEach(p => {
-
-  const lab = denomLabel(p.den);
-  if (!coins.includes(lab)) return;
-
-  const parts = p.k.split("_");
-  const hopper = parts[1];
-
-  // 🔥 NORMALISE USING FINAL BASE VALUE (NOT raw p.order)
-  const finalValue = state.rec[p.k];
-  if (!finalValue) return;
-
-  groups[lab] ??= [];
-  groups[lab].push({
-    value: Math.round(finalValue),
-    hopper: hopper
-  });
-});
-
-  // remove single hopper denominations
+  // STEP 2: REMOVE single-hopper denominations (KEY FIX)
   Object.keys(groups).forEach(k => {
-    if (groups[k].length <= 1) delete groups[k];
+    if (groups[k].length <= 1) {
+      delete groups[k];
+    }
   });
 
-  if (!Object.keys(groups).length) {
-    comment.textContent = "";
-    return;
-  }
+  const totalHoppers = state.rows.filter(r =>
+    coins.includes(denomLabel(r.Denomination))
+  ).length;
 
-  // build output (NO "Comment :" here)
-  let txt = `${hoppers}:`;
+  // STEP 3: build output
+  let txt = `${totalHoppers}:`;
 
   coins.forEach(c => {
     if (groups[c]) {
       txt += ` ${c} ` + groups[c]
+        .sort((a, b) => a.hopper - b.hopper)
         .map(x => `${x.value}H${x.hopper}`)
         .join(" ");
     }
