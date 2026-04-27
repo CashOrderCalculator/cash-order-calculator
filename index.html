@@ -3201,6 +3201,7 @@ const DATA = [
 
 
 
+
 /* =====================================================
    COPY COMMENT
 ===================================================== */
@@ -3394,67 +3395,58 @@ function calculate() {
     const rule = RULES[den];
     const max = MAX_BY_DENOM[den];
 
-    let denomValid = true;
     const baseResults = [];
 
-    rows.forEach(item => {
-      let val = item.val;
+rows.forEach(item => {
+  let val = item.val;
 
-      const inputEl = document.querySelector(`input[data-key="${item.k}"]`);
+  const inputEl = document.querySelector(`input[data-key="${item.k}"]`);
 
-      if (inputEl) {
-        inputEl.classList.remove("input-error", "input-warn");
-        inputEl.title = "";
-      }
+  if (inputEl) {
+    inputEl.classList.remove("input-error", "input-warn");
+    inputEl.title = "";
+  }
 
-      if (val == null || val === "") return;
-      val = Number(val);
+  if (val == null || val === "") return;
+  val = Number(val);
 
-      if (val > max) {
-        hasError = true;
-        if (inputEl) {
-          inputEl.classList.add("input-error");
-          inputEl.title = `Error: exceeds max capacity ($${max})`;
-        }
-      } else if ((val / den) % 1 !== 0) {
-        if (inputEl) {
-          inputEl.classList.add("input-warn");
-          inputEl.title = `Warning: must be multiple of ${denomLabel(Number(den))}`;
-        }
-      }
+  if (val > max) {
+    hasError = true;
+    if (inputEl) {
+      inputEl.classList.add("input-error");
+      inputEl.title = `Error: exceeds max capacity ($${max})`;
+    }
+  } else if ((val / den) % 1 !== 0) {
+    if (inputEl) {
+      inputEl.classList.add("input-warn");
+      inputEl.title = `Warning: must be multiple of ${denomLabel(Number(den))}`;
+    }
+  }
 
-      const deficit = max - val;
-      if (deficit < rule.min) denomValid = false;
-    });
+  const deficit = max - val;
 
-    rows.forEach(item => {
-      let val = item.val;
-      if (val == null || val === "") return;
+  const forecast =
+    (Number(item.r.Dispensed) || 0) /
+    (Number(item.r.Count) || 1) *
+    dayFactor;
 
-      val = Number(val);
+  // 🚨 HARD MIN RULE (this is the missing logic)
+  if (deficit < rule.min) {
+    baseResults.push(0);
+    return;
+  }
 
-      const deficit = max - val;
+  const baseOrder = Math.floor(deficit / rule.pack) * rule.pack;
 
-      let baseOrder = 0;
+  const raw = baseOrder + forecast;
 
-      if (denomValid) {
-        baseOrder = Math.floor(deficit / rule.pack) * rule.pack;
-      }
-
-      const forecast =
-        (Number(item.r.Dispensed) || 0) /
-        (Number(item.r.Count) || 1) *
-        dayFactor;
-
-      const raw = baseOrder + forecast;
-
-      baseResults.push(raw);
-    });
+  baseResults.push(raw);
+});
 
     let groupValue = Math.min(...baseResults);
     if (!isFinite(groupValue)) groupValue = 0;
 
-    groupValue = Math.round(groupValue / rule.pack) * rule.pack;
+    groupValue = Math.floor(groupValue / rule.pack) * rule.pack;
     groupValue = Math.min(groupValue, max);
 
     rows.forEach(item => {
