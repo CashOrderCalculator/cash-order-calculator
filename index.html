@@ -157,8 +157,8 @@ display: inline-block;
   border-left-color: var(--negative-accent);
 }
 .comment {
-  margin-top: 5px;
-  padding: 10px 16px;
+  margin-top: 1px;
+  padding: 5px 8px;
   background: #ffffff;
   border-left: 4px solid var(--dark-neutral);
   border-radius: 4px;
@@ -246,11 +246,12 @@ display: inline-block;
   </div>
 
   <!-- RIGHT -->
-  <div style="flex:0 0 365px; display:flex; flex-direction:column; gap:10px;">
+  <div style="flex:0 0 365px; display:flex; flex-direction:column; gap:9px;">
 
     <div class="summary" id="summary"></div>
 
     <div id="recSummaryTable"></div>
+    <div class="comment" id="ReccomnededTotal"></div>
     <div style="font-weight:bold;">Comment: Must be copied to order</div>
     <div class="comment" id="comment"></div>
     <button class="saveBtn" onclick="copyComment()">Copy Comment</button>
@@ -3375,11 +3376,8 @@ function calculate() {
   state.rec = {};
 
   const days = Math.max(1, Number(daysInput.value || 1));
-  const dayFactor = Math.max(0, days - 1);
+  const dayFactor = Math.max(1, days); // ✅ FIXED (includes today)
 
-  // =========================
-  // GROUP BY DENOM
-  // =========================
   state.rows.forEach((r, i) => {
     const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
     const val = state.inputs[k];
@@ -3390,9 +3388,6 @@ function calculate() {
 
   const provisional = [];
 
-  // =========================
-  // PER DENOM
-  // =========================
   Object.keys(denomRows).forEach(den => {
 
     const rows = denomRows[den];
@@ -3400,166 +3395,13 @@ function calculate() {
     const max = MAX_BY_DENOM[den];
 
     let denomValid = true;
-
     const baseResults = [];
 
-    // =========================
-    // VALIDATION PASS
-    // =========================
-    rows.forEach(item => {
-      let val = item.val;
-
-      if (val == null || val === "") return;
-      val = Number(val);
-
-      if (val > max) hasError = true;
-
-      const deficit = max - val;
-      if (deficit < rule.min) denomValid = false;
-    });
-
-    // =========================
-    // BASE CALC (NO ROUNDING YET)
-    // =========================
-    rows.forEach(item => {
-
-      let val = item.val;
-      if (val == null || val === "") return;
-
-      val = Number(val);
-
-      const deficit = max - val;
-
-      let baseOrder = 0;
-
-      if (denomValid) {
-        baseOrder = Math.floor(deficit / rule.pack) * rule.pack;
-      }
-
-      const forecast =
-        (Number(item.r.Dispensed) || 0) /
-        (Number(item.r.Count) || 1) *
-        dayFactor;
-
-      const raw = baseOrder + forecast;
-
-      baseResults.push(raw);
-    });
-
-    // =========================
-    // MULTI-HOPPER RULE (CORRECT)
-    // =========================
-    // TAKE MINIMUM BASE REQUIREMENT
-    let groupValue = Math.min(...baseResults);
-
-    if (!isFinite(groupValue)) groupValue = 0;
-
-    // =========================
-    // APPLY ROUNDING ONCE (CRITICAL FIX)
-    // =========================
-    groupValue = Math.round(groupValue / rule.pack) * rule.pack;
-
-    // =========================
-    // CAP AFTER GROUP DECISION
-    // =========================
-    groupValue = Math.min(groupValue, max);
-
-    // =========================
-    // APPLY TO ALL HOPPERS
-    // =========================
-    rows.forEach(item => {
-      state.rec[item.k] = groupValue;
-
-      provisional.push({
-        k: item.k,
-        den: Number(den),
-        order: groupValue
-      });
-
-      total += groupValue;
-    });
-  });
-
-  // =========================
-  // SUMMARY BUILD
-  // =========================
-  const byDen = {};
-
-  Object.keys(denomRows).forEach(den => {
-    byDen[den] = [];
-
-    denomRows[den].forEach(item => {
-      const val = state.rec[item.k] || 0;
-      byDen[den].push({ order: val });
-    });
-  });
-
-  // =========================
-  // UI
-  // =========================
-  summary.textContent =
-    hasError
-      ? "Recommended Order: (errors present)"
-      : total < 1000
-        ? "Recommended Order: No"
-        : "Recommended Order: Yes";
-
-  summary.classList.toggle("negative", hasError || total < 1000);
-
-  if (total >= 1000 && !hasError) {
-    renderRecSummary(byDen);
-  } else {
-    document.getElementById("recSummaryTable").innerHTML = "";
-  }
-
-  calculateCurrentContentTotals();
-  buildComment(provisional);
-}
-function calculate() {
-  let total = 0;
-  let hasError = false;
-
-  const denomRows = {};
-  state.rec = {};
-
-  const days = Math.max(1, Number(daysInput.value || 1));
-  const dayFactor = Math.max(0, days - 1);
-
-  // =========================
-  // GROUP BY DENOM
-  // =========================
-  state.rows.forEach((r, i) => {
-    const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
-    const val = state.inputs[k];
-
-    if (!denomRows[r.Denomination]) denomRows[r.Denomination] = [];
-    denomRows[r.Denomination].push({ r, i, k, val });
-  });
-
-  const provisional = [];
-
-  // =========================
-  // PER DENOM
-  // =========================
-  Object.keys(denomRows).forEach(den => {
-
-    const rows = denomRows[den];
-    const rule = RULES[den];
-    const max = MAX_BY_DENOM[den];
-
-    let denomValid = true;
-
-    const baseResults = [];
-
-    // =========================
-    // VALIDATION PASS
-    // =========================
     rows.forEach(item => {
       let val = item.val;
 
       const inputEl = document.querySelector(`input[data-key="${item.k}"]`);
 
-      // RESET STYLES
       if (inputEl) {
         inputEl.classList.remove("input-error", "input-warn");
         inputEl.title = "";
@@ -3568,16 +3410,13 @@ function calculate() {
       if (val == null || val === "") return;
       val = Number(val);
 
-      // ERROR: OVER MAX
       if (val > max) {
         hasError = true;
         if (inputEl) {
           inputEl.classList.add("input-error");
           inputEl.title = `Error: exceeds max capacity ($${max})`;
         }
-      }
-      // WARNING: NOT MULTIPLE OF DENOM
-      else if ((val / den) % 1 !== 0) {
+      } else if ((val / den) % 1 !== 0) {
         if (inputEl) {
           inputEl.classList.add("input-warn");
           inputEl.title = `Warning: must be multiple of ${denomLabel(Number(den))}`;
@@ -3588,11 +3427,7 @@ function calculate() {
       if (deficit < rule.min) denomValid = false;
     });
 
-    // =========================
-    // BASE CALC (NO ROUNDING YET)
-    // =========================
     rows.forEach(item => {
-
       let val = item.val;
       if (val == null || val === "") return;
 
@@ -3616,26 +3451,12 @@ function calculate() {
       baseResults.push(raw);
     });
 
-    // =========================
-    // MULTI-HOPPER RULE
-    // =========================
     let groupValue = Math.min(...baseResults);
-
     if (!isFinite(groupValue)) groupValue = 0;
 
-    // =========================
-    // APPLY ROUNDING
-    // =========================
     groupValue = Math.round(groupValue / rule.pack) * rule.pack;
-
-    // =========================
-    // CAP AFTER GROUP DECISION
-    // =========================
     groupValue = Math.min(groupValue, max);
 
-    // =========================
-    // APPLY TO ALL HOPPERS
-    // =========================
     rows.forEach(item => {
       state.rec[item.k] = groupValue;
 
@@ -3649,14 +3470,10 @@ function calculate() {
     });
   });
 
-  // =========================
-  // SUMMARY BUILD
-  // =========================
   const byDen = {};
 
   Object.keys(denomRows).forEach(den => {
     byDen[den] = [];
-
     denomRows[den].forEach(item => {
       const val = state.rec[item.k] || 0;
       byDen[den].push({ order: val });
@@ -3674,6 +3491,10 @@ function calculate() {
         : "Recommended Order: Yes";
 
   summary.classList.toggle("negative", hasError || total < 1000);
+
+  // ✅ NEW: Recommended Total Display
+  document.getElementById("ReccomnededTotal").textContent =
+    `Total: $${total.toFixed(2)}`;
 
   if (total >= 1000 && !hasError) {
     renderRecSummary(byDen);
