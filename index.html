@@ -3201,7 +3201,6 @@ const DATA = [
 
 
 
-
 /* =====================================================
    COPY COMMENT
 ===================================================== */
@@ -3589,48 +3588,117 @@ function buildComment(provisional) {
 function finaliseOrder() {
   if (!confirm("Have you finished your order and submitted it in the Armaguard Portal?")) return;
 
-  const csv = ["SiteName,Offer,Denomination,Hopper,CurrentContent,RecommendedOrder"];
+  // =========================
+  // BUILD DATA
+  // =========================
+  const rows = [];
 
   state.rows.forEach((r, i) => {
     const k = `${r.Denomination}_${r.HopperNumber}_${i}`;
 
-    const recValue = state.rec[k];
-
-csv.push([
-  r.SiteName,
-  r.EmailPrefix,
-  r.Denomination,
-  r.HopperNumber,
-  state.inputs[k] ?? "",
-  recValue ?? ""
-].join(","));
+    rows.push({
+      Site: r.SiteName,
+      Offer: r.EmailPrefix,
+      Denomination: denomLabel(r.Denomination),
+      Hopper: r.HopperNumber,
+      Current: state.inputs[k] ?? 0,
+      Recommended: state.rec[k] ?? 0
+    });
   });
 
-  // ✅ ADD COMMENT ROW (this is what you're missing)
-  csv.push(["Comment", comment.textContent || ""].join(","));
+  const commentText = document.getElementById("comment").textContent || "";
+  const totalText = document.getElementById("ReccomnededTotal").textContent;
 
-  const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+  // =========================
+  // FORMAT TABLE (fixed width)
+  // =========================
+  function pad(str, len) {
+    return String(str).padEnd(len, " ");
+  }
+
+  const header =
+    pad("Denom", 8) +
+    pad("Hopper", 8) +
+    pad("Current", 12) +
+    pad("Recommended", 14);
+
+  const divider = "-".repeat(42);
+
+  const tableRows = rows.map(r =>
+    pad(r.Denomination, 8) +
+    pad(r.Hopper, 8) +
+    pad(`$${Number(r.Current).toFixed(2)}`, 12) +
+    pad(`$${Number(r.Recommended).toFixed(2)}`, 14)
+  );
+
+  const tableText = [header, divider, ...tableRows].join("\n");
+
+  // =========================
+  // EMAIL CONTENT
+  // =========================
+  const subject = encodeURIComponent("Cash Order Submission");
+
+  const body = encodeURIComponent(
+`Cash Order Completed
+
+Site: ${siteSelect.value}
+Offer: ${offerSelect.value}
+${totalText}
+
+------------------------------------------
+DETAILS
+------------------------------------------
+${tableText}
+
+------------------------------------------
+COMMENT
+------------------------------------------
+${commentText}
+`
+  );
+
+  // Open email client
+  window.location.href = `mailto:j.hall@otr.com.au?subject=${subject}&body=${body}`;
+
+  // =========================
+  // DOWNLOAD CSV (unchanged)
+  // =========================
+  const csv = ["SiteName,Offer,Denomination,Hopper,CurrentContent,RecommendedOrder"];
+
+  rows.forEach(r => {
+    csv.push([
+      r.Site,
+      r.Offer,
+      r.Denomination,
+      r.Hopper,
+      r.Current,
+      r.Recommended
+    ].join(","));
+  });
+
+  csv.push(["Comment", commentText].join(","));
+
+  const csvString = csv.join("\n");
+  const fileName = `cash_order_${siteSelect.value}_${Date.now()}.csv`;
+
+  const blob = new Blob([csvString], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
   a.href = url;
-  a.download = "cash_order.csv";
+  a.download = fileName;
 
   document.body.appendChild(a);
+  a.click();
 
-// ✅ MUST be synchronous user gesture
-a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
 
-// cleanup after browser has time to start download
-setTimeout(() => {
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}, 1000);
-
-// refresh after download initiation window
-setTimeout(() => {
-  location.reload();
-}, 2000);
+  setTimeout(() => {
+    location.reload();
+  }, 2000);
 }
 /* =====================================================
    INIT
