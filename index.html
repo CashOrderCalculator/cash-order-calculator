@@ -3271,9 +3271,6 @@ const DATA = [
   { SiteName: 'SW Whyalla Westlands', EmailPrefix: 'SW', LocID: 7761, Denomination: 20.00, HopperNumber: 3, Dispensed: 24640.0, Count: 365 },
 ];
 
-
-
-
 /* =====================================================
    COPY COMMENT
 ===================================================== */
@@ -3400,28 +3397,31 @@ function render(){
   state.rows=NORMALISED
     .filter(r=>r.SiteName===siteSelect.value && r.EmailPrefix===offerSelect.value)
     .sort((a, b) => {
-  const NOTE_ORDER = [5, 10, 20];
-  const COIN_ORDER = [2, 1, 0.2, 0.1, 0.05];
 
-  function getDenominationRank(d) {
-    if (NOTE_ORDER.includes(d)) {
-      return NOTE_ORDER.indexOf(d);
-    }
-    if (COIN_ORDER.includes(d)) {
-      return 100 + COIN_ORDER.indexOf(d);
-    }
-    return 999;
+  const NOTE_ORDER = {
+    5: 1,
+    10: 2,
+    20: 3
+  };
+
+  const isANote = a.Denomination >= 5;
+  const isBNote = b.Denomination >= 5;
+
+  // =========================
+  // NOTES FIRST
+  // =========================
+  if (isANote && isBNote) {
+    return NOTE_ORDER[a.Denomination] - NOTE_ORDER[b.Denomination];
   }
 
-  const rankDiff =
-    getDenominationRank(a.Denomination) -
-    getDenominationRank(b.Denomination);
+  if (isANote) return -1;
+  if (isBNote) return 1;
 
-  if (rankDiff !== 0) return rankDiff;
-
+  // =========================
+  // COINS BY HOPPER
+  // =========================
   return a.HopperNumber - b.HopperNumber;
 });
-
   tableContainer.innerHTML=`
   <table><thead><tr>
     <th>Denomination</th><th>Hopper</th><th>Maximum Capacity ($)</th>
